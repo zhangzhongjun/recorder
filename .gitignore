@@ -1,0 +1,27 @@
+# Swift build artifacts
+.build/
+*.o
+*.d
+
+# Xcode
+*.xcodeproj/
+*.xcworkspace/
+DerivedData/
+.swiftpm/
+
+# App bundle (built locally, not committed)
+*.app/
+*.dmg
+*.icns
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Temp files
+.tmp_*.dmg
+.dmg_background.png
+
+# Claude Code local settings
+.claude/
