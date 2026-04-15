@@ -21,17 +21,19 @@ class TranscriptionStore: ObservableObject {
     @Published var status: String = "就绪"
     @Published var selectedLanguage: RecognitionLanguage = .english
     @Published var scrollTrigger: Int = 0
-    // Permission UI states — mutually exclusive
-    @Published var needsPermissionRetry: Bool = false  // granted in settings, can retry without restart
-    @Published var needsRelaunch: Bool = false          // SCKit still fails after grant; restart required
+    @Published var needsPermissionRetry: Bool = false
+    @Published var needsRelaunch: Bool = false
+    @Published var aiResponse: String? = nil
+    @Published var isAIProcessing: Bool = false
+    @Published var showAIPanel: Bool = true
 
     private let maxSegments = 100
+    var onFinalAppended: ((String) -> Void)?
 
     func appendFinal(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
 
-        // Replace last partial segment or add new
         if let lastIndex = segments.indices.last, !segments[lastIndex].isFinal {
             segments[lastIndex].text = trimmed
             segments[lastIndex].isFinal = true
@@ -43,6 +45,7 @@ class TranscriptionStore: ObservableObject {
             segments.removeFirst(segments.count - maxSegments)
         }
         scrollTrigger += 1
+        onFinalAppended?(trimmed)
     }
 
     func updatePartial(_ text: String) {
@@ -59,6 +62,7 @@ class TranscriptionStore: ObservableObject {
 
     func clear() {
         segments = []
+        aiResponse = nil
     }
 }
 

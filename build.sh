@@ -27,9 +27,10 @@ echo "==> Generating icon..."
 ICONSET_DIR="$APP_BUNDLE/Contents/Resources/AppIcon.iconset"
 python3 "$SCRIPT_DIR/make_icon.py" "$ICONSET_DIR"
 
-# Convert iconset → .icns
+# Convert iconset → .icns, then remove the iconset directory
 if command -v iconutil &> /dev/null; then
     iconutil -c icns "$ICONSET_DIR" -o "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
+    rm -rf "$ICONSET_DIR"
     echo "  AppIcon.icns created"
 fi
 

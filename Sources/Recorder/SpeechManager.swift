@@ -12,9 +12,7 @@ class SpeechManager: NSObject, ObservableObject {
     private var restartTimer: Timer?
     private var silenceTimer: Timer?
     private var lastResultText: String = ""
-    private var sessionStartTime: Date?
 
-    // Apple Speech has ~1 min limit per task; restart before that
     private let taskDurationLimit: TimeInterval = 50
     private let silenceTimeout: TimeInterval = 2.5
 
@@ -38,9 +36,7 @@ class SpeechManager: NSObject, ObservableObject {
 
         restartTimer = Timer.scheduledTimer(withTimeInterval: taskDurationLimit, repeats: true) { [weak self] _ in
             guard let self else { return }
-            Task { @MainActor in
-                self.cycleSession(language: language)
-            }
+            Task { @MainActor in self.cycleSession(language: language) }
         }
     }
 
@@ -60,22 +56,28 @@ class SpeechManager: NSObject, ObservableObject {
     // MARK: - Private
 
     private func startSession(language: RecognitionLanguage) {
-        let locale = Locale(identifier: language.localeIdentifiers.first ?? "zh-CN")
-        recognizer = SFSpeechRecognizer(locale: locale)
-        recognizer?.defaultTaskHint = .dictation
+        let localeId = language.localeIdentifiers.first ?? "en-US"
+        recognizer = SFSpeechRecognizer(locale: Locale(identifier: localeId))
+
+        guard let recognizer else {
+            store.status = "识别器创建失败 (locale=\(localeId))"
+            return
+        }
+        guard recognizer.isAvailable else {
+            store.status = "识别器不可用 (locale=\(localeId))"
+            return
+        }
+
+        recognizer.defaultTaskHint = .dictation
 
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
         request.requiresOnDeviceRecognition = false
-        // Enable punctuation on supported OS versions
-        if #available(macOS 13.0, *) {
-            request.addsPunctuation = true
-        }
+        if #available(macOS 13.0, *) { request.addsPunctuation = true }
 
         recognitionRequest = request
-        sessionStartTime = Date()
 
-        recognitionTask = recognizer?.recognitionTask(with: request) { [weak self] result, error in
+        recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, error in
             guard let self else { return }
             Task { @MainActor in
                 if let result = result {
@@ -90,11 +92,9 @@ class SpeechManager: NSObject, ObservableObject {
                 }
                 if let error = error {
                     let nsError = error as NSError
-                    // Code 301 = recognition canceled (normal on restart)
-                    // Code 203 = no speech detected
                     let ignoredCodes = [301, 203, 1101, 1107, 1110]
                     if !ignoredCodes.contains(nsError.code) {
-                        self.store.status = "识别错误: \(nsError.localizedDescription)"
+                        self.store.status = "识别错误 \(nsError.code): \(nsError.localizedDescription)"
                     }
                 }
             }
@@ -124,11 +124,9 @@ class SpeechManager: NSObject, ObservableObject {
         silenceTimer = Timer.scheduledTimer(withTimeInterval: silenceTimeout, repeats: false) { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
-                // Commit current partial on silence
                 if !self.lastResultText.isEmpty {
                     self.store.appendFinal(self.lastResultText)
                     self.lastResultText = ""
-                    // Restart session to get fresh context
                     self.cycleSession(language: self.store.selectedLanguage)
                 }
             }

@@ -6,38 +6,35 @@ class RecorderViewModel: ObservableObject {
     let store: TranscriptionStore
     private let speechManager: SpeechManager
     private let captureManager: AudioCaptureManager
+    let aiManager: AIManager
 
     init(store: TranscriptionStore) {
         self.store = store
         self.speechManager = SpeechManager(store: store)
         self.captureManager = AudioCaptureManager(speechManager: speechManager, store: store)
-    }
+        self.aiManager = AIManager(store: store)
 
-    func toggleRecording() {
-        if store.isRecording {
-            stopRecording()
-        } else {
-            Task { await startRecording() }
+        store.onFinalAppended = { [weak aiManager] text in
+            aiManager?.onNewSegment(text: text)
         }
     }
 
-    // Called by the "重试" button — no restart needed, TCC was updated
+    func toggleRecording() {
+        if store.isRecording { stopRecording() }
+        else { Task { await startRecording() } }
+    }
+
     func retryAfterPermission() {
         Task { await startRecording() }
     }
 
-    // Called by the "重启" button — uses /usr/bin/open so the new instance
-    // starts before this process terminates
     func relaunch() {
         let bundlePath = Bundle.main.bundleURL.path
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        task.arguments = ["-n", bundlePath]   // -n forces a new instance
+        task.arguments = ["-n", bundlePath]
         try? task.run()
-        // Give /usr/bin/open 0.5 s to spawn the new process, then quit
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            NSApp.terminate(nil)
-        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { NSApp.terminate(nil) }
     }
 
     private func startRecording() async {
@@ -58,12 +55,13 @@ class RecorderViewModel: ObservableObject {
 
         do {
             try await captureManager.startCapture()
-            store.isRecording = true
-            store.status = "正在监听..."
         } catch {
             speechManager.stop()
-            // needsPermissionRetry / needsRelaunch / status already set inside startCapture
+            return
         }
+
+        store.isRecording = true
+        store.status = "正在监听..."
     }
 
     private func stopRecording() {

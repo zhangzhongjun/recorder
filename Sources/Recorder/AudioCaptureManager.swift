@@ -94,6 +94,7 @@ extension AudioCaptureManager: SCStreamOutput {
     }
 }
 
+
 // MARK: - SCStreamDelegate
 extension AudioCaptureManager: SCStreamDelegate {
     nonisolated func stream(_ stream: SCStream, didStopWithError error: Error) {

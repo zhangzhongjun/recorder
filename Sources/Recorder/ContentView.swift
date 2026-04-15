@@ -3,27 +3,25 @@ import SwiftUI
 struct ContentView: View {
     @ObservedObject var store: TranscriptionStore
     @ObservedObject var viewModel: RecorderViewModel
-    @State private var isHoveringControls = false
+
+    private var hasAI: Bool { ConfigManager.apiKey != nil }
 
     var body: some View {
         VStack(spacing: 0) {
             controlBar
             transcriptionArea
+            if hasAI && store.showAIPanel {
+                aiPanel
+            }
         }
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.black.opacity(0.82))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
-        )
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.black.opacity(0.82)))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.white.opacity(0.12), lineWidth: 1))
     }
 
     // MARK: - Control Bar
+
     private var controlBar: some View {
         HStack(spacing: 8) {
-            // Recording indicator
             Circle()
                 .fill(store.isRecording ? Color.red : Color.gray)
                 .frame(width: 8, height: 8)
@@ -36,7 +34,6 @@ struct ContentView: View {
                                    value: store.isRecording)
                 )
 
-            // Status text
             Text(store.status)
                 .font(.system(size: 11, weight: .medium, design: .monospaced))
                 .foregroundColor(.white.opacity(0.7))
@@ -44,25 +41,20 @@ struct ContentView: View {
 
             Spacer()
 
-            // "重试" — TCC says granted now, no restart needed
             if store.needsPermissionRetry {
                 Button(action: { viewModel.retryAfterPermission() }) {
                     permissionBadge(label: "已授权，重试", icon: "checkmark.shield", color: .green)
                 }
                 .buttonStyle(.plain)
-                .help("已在系统设置中授权屏幕录制，点击重试")
             }
 
-            // "重启" — SCKit still failing after TCC grant; process restart required
             if store.needsRelaunch {
                 Button(action: { viewModel.relaunch() }) {
                     permissionBadge(label: "重启应用", icon: "arrow.clockwise", color: .yellow)
                 }
                 .buttonStyle(.plain)
-                .help("权限已授予，但需重启应用才能生效")
             }
 
-            // Language picker
             Picker("", selection: Binding(
                 get: { store.selectedLanguage },
                 set: { viewModel.changeLanguage($0) }
@@ -76,16 +68,23 @@ struct ContentView: View {
             .scaleEffect(0.85)
             .colorScheme(.dark)
 
-            // Clear button
+            if hasAI {
+                Button(action: { store.showAIPanel.toggle() }) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 12))
+                        .foregroundColor(store.showAIPanel ? .yellow.opacity(0.9) : .white.opacity(0.3))
+                }
+                .buttonStyle(.plain)
+                .help(store.showAIPanel ? "隐藏 AI 面板" : "显示 AI 面板")
+            }
+
             Button(action: { store.clear() }) {
                 Image(systemName: "trash")
                     .font(.system(size: 12))
                     .foregroundColor(.white.opacity(0.6))
             }
             .buttonStyle(.plain)
-            .help("清空字幕")
 
-            // Start/Stop button
             Button(action: { viewModel.toggleRecording() }) {
                 HStack(spacing: 4) {
                     Image(systemName: store.isRecording ? "stop.fill" : "mic.fill")
@@ -106,18 +105,14 @@ struct ContentView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(Color.white.opacity(0.06))
-        .overlay(alignment: .bottom) {
-            Divider().opacity(0.3)
-        }
+        .overlay(alignment: .bottom) { Divider().opacity(0.3) }
     }
 
     @ViewBuilder
     private func permissionBadge(label: String, icon: String, color: Color) -> some View {
         HStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.system(size: 11, weight: .bold))
-            Text(label)
-                .font(.system(size: 11, weight: .semibold))
+            Image(systemName: icon).font(.system(size: 11, weight: .bold))
+            Text(label).font(.system(size: 11, weight: .semibold))
         }
         .foregroundColor(.black)
         .padding(.horizontal, 9)
@@ -126,6 +121,7 @@ struct ContentView: View {
     }
 
     // MARK: - Transcription Area
+
     private var transcriptionArea: some View {
         ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
@@ -135,49 +131,81 @@ struct ContentView: View {
                         SegmentView(segment: segment, distanceFromEnd: distanceFromEnd)
                             .id(segment.id)
                     }
-
-                    // Spacer at bottom for auto-scroll target
                     Color.clear.frame(height: 1).id("bottom")
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
             }
             .onChange(of: store.scrollTrigger) { _ in
-                proxy.scrollTo("bottom", anchor: .bottom)
+                withAnimation { proxy.scrollTo("bottom", anchor: .bottom) }
             }
         }
     }
+
+    // MARK: - AI Panel
+
+    private var aiPanel: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Rectangle().fill(Color.yellow.opacity(0.25)).frame(height: 1)
+
+            HStack(spacing: 6) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.yellow.opacity(0.8))
+                Text("AI")
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .foregroundColor(.yellow.opacity(0.8))
+                if store.isAIProcessing {
+                    ProgressView().scaleEffect(0.5).frame(width: 12, height: 12)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 7)
+            .padding(.bottom, 4)
+
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 0) {
+                    if let response = store.aiResponse {
+                        AIResponseView(text: response)
+                    } else if !store.isAIProcessing {
+                        Text("等待识别内容...")
+                            .font(.system(size: 12))
+                            .foregroundColor(.white.opacity(0.25))
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 12)
+                .padding(.bottom, 8)
+            }
+            .frame(maxHeight: 80)
+        }
+        .background(Color.white.opacity(0.04))
+    }
 }
+
+// MARK: - SegmentView
 
 struct SegmentView: View {
     let segment: TranscriptionSegment
-    let distanceFromEnd: Int  // 0 = latest
+    let distanceFromEnd: Int
 
-    // Opacity fades from 1.0 (latest) down to 0.25 (older than 4 lines)
     private var opacity: Double {
-        guard segment.isFinal else { return 0.55 }  // partial result
-        let fade = max(0, min(4, distanceFromEnd))
-        return 1.0 - Double(fade) * 0.175
-    }
-
-    private var fontSize: CGFloat {
-        distanceFromEnd == 0 ? 17 : 15
-    }
-
-    private var fontWeight: Font.Weight {
-        distanceFromEnd == 0 ? .semibold : .regular
+        guard segment.isFinal else { return 0.55 }
+        return 1.0 - Double(max(0, min(4, distanceFromEnd))) * 0.175
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .top, spacing: 6) {
             Text(timeString(segment.timestamp))
                 .font(.system(size: 10, design: .monospaced))
                 .foregroundColor(.white.opacity(0.25))
-                .frame(width: 42, alignment: .trailing)
-                .padding(.top, distanceFromEnd == 0 ? 3 : 2)
+                .frame(width: 38, alignment: .trailing)
+                .padding(.top, distanceFromEnd == 0 ? 2 : 1)
 
             Text(segment.text)
-                .font(.system(size: fontSize, weight: fontWeight))
+                .font(.system(size: distanceFromEnd == 0 ? 17 : 15,
+                              weight: distanceFromEnd == 0 ? .semibold : .regular))
                 .foregroundColor(.white.opacity(opacity))
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
@@ -192,17 +220,43 @@ struct SegmentView: View {
     }
 }
 
+// MARK: - AIResponseView
+
+struct AIResponseView: View {
+    let text: String
+
+    var body: some View {
+        if text.hasPrefix("Q:") {
+            VStack(alignment: .leading, spacing: 4) {
+                let lines = text.components(separatedBy: "\n")
+                    .map { $0.trimmingCharacters(in: .whitespaces) }
+                    .filter { !$0.isEmpty }
+                ForEach(Array(lines.enumerated()), id: \.offset) { idx, line in
+                    if idx == 0 {
+                        Text(line).font(.system(size: 12, weight: .semibold)).foregroundColor(.yellow.opacity(0.9))
+                    } else {
+                        Text(line).font(.system(size: 12)).foregroundColor(.white.opacity(0.85))
+                    }
+                }
+            }
+        } else {
+            Text(text).font(.system(size: 12)).foregroundColor(.white.opacity(0.75))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+// MARK: - Preview
+
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         let store = TranscriptionStore()
         store.segments = [
-            TranscriptionSegment(text: "大家好，我们开始今天的会议", isFinal: true),
-            TranscriptionSegment(text: "首先来看一下上周的进展", isFinal: true),
+            TranscriptionSegment(text: "Can you walk me through your experience?", isFinal: true),
+            TranscriptionSegment(text: "Sure, I've been working on distributed systems for five years.", isFinal: true),
             TranscriptionSegment(text: "正在识别中...", isFinal: false),
         ]
-        let vm = RecorderViewModel(store: store)
-        return ContentView(store: store, viewModel: vm)
-
-            .frame(width: 600, height: 300)
+        return ContentView(store: store, viewModel: RecorderViewModel(store: store))
+            .frame(width: 500, height: 280)
     }
 }
