@@ -13,6 +13,7 @@
 - **悬浮字幕窗口** — 半透明深色窗口，始终置顶，可拖拽、可调整大小
 - **投屏不可见** — 窗口对屏幕录制和共享不可见（`sharingType = .none`），只有本人能看到字幕
 - **渐变字幕样式** — 最新字幕更大更亮，旧字幕渐渐淡出
+- **备忘录面板** — 内置可折叠文本输入区，内容自动持久化，重启后恢复，投屏同样不可见
 - **菜单栏驻留** — 无 Dock 图标，通过菜单栏图标控制显示/隐藏
 
 ## 系统要求
@@ -59,6 +60,15 @@ make dmg
 4. 支持中途切换语言（中文 / English / 自动）
 5. 点击 **"停止"** 或关闭窗口结束
 
+### 备忘录
+
+点击控制栏的 **`note.text`** 图标（或菜单栏 → 显示/隐藏备忘录，快捷键 `N`）展开备忘录面板。
+
+- 可在会议中随手记录关键信息
+- 文字自动保存至 `~/.config/recorder/notes.txt`，重启后恢复
+- 点击面板右上角垃圾桶图标清空内容
+- 与字幕窗口共用同一悬浮层，投屏同样不可见
+
 ## 项目结构
 
 ```
@@ -66,8 +76,9 @@ Sources/Recorder/
 ├── main.swift                 # 入口，启动 NSApplication
 ├── AppDelegate.swift          # 菜单栏图标与窗口管理
 ├── OverlayWindowController.swift  # 悬浮窗口（sharingType = .none）
-├── ContentView.swift          # SwiftUI 字幕界面
-├── TranscriptionStore.swift   # 共享状态（ObservableObject）
+├── ContentView.swift          # SwiftUI 字幕界面（含备忘录面板）
+├── TranscriptionStore.swift   # 字幕共享状态（ObservableObject）
+├── NotesStore.swift           # 备忘录状态与持久化
 ├── RecorderViewModel.swift    # 权限流程 + 录制控制
 ├── AudioCaptureManager.swift  # ScreenCaptureKit 音频捕获
 └── SpeechManager.swift        # Speech 框架实时识别
