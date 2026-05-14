@@ -3,6 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @ObservedObject var store: TranscriptionStore
     @ObservedObject var viewModel: RecorderViewModel
+    @ObservedObject var notesStore: NotesStore
 
     private var hasAI: Bool { ConfigManager.apiKey != nil }
 
@@ -12,6 +13,9 @@ struct ContentView: View {
             transcriptionArea
             if hasAI && store.showAIPanel {
                 aiPanel
+            }
+            if notesStore.showPanel {
+                notesPanel
             }
         }
         .background(RoundedRectangle(cornerRadius: 12).fill(Color.black.opacity(0.82)))
@@ -77,6 +81,14 @@ struct ContentView: View {
                 .buttonStyle(.plain)
                 .help(store.showAIPanel ? "隐藏 AI 面板" : "显示 AI 面板")
             }
+
+            Button(action: { notesStore.showPanel.toggle() }) {
+                Image(systemName: "note.text")
+                    .font(.system(size: 12))
+                    .foregroundColor(notesStore.showPanel ? .orange.opacity(0.9) : .white.opacity(0.3))
+            }
+            .buttonStyle(.plain)
+            .help(notesStore.showPanel ? "隐藏备忘录" : "显示备忘录")
 
             Button(action: { store.clear() }) {
                 Image(systemName: "trash")
@@ -182,6 +194,45 @@ struct ContentView: View {
         }
         .background(Color.white.opacity(0.04))
     }
+
+    // MARK: - Notes Panel
+
+    private var notesPanel: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Rectangle().fill(Color.orange.opacity(0.25)).frame(height: 1)
+
+            HStack(spacing: 6) {
+                Image(systemName: "note.text")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.orange.opacity(0.8))
+                Text("备忘录")
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .foregroundColor(.orange.opacity(0.8))
+                Spacer()
+                Button(action: { notesStore.clear() }) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 10))
+                        .foregroundColor(.white.opacity(0.3))
+                }
+                .buttonStyle(.plain)
+                .help("清空备忘录")
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 7)
+            .padding(.bottom, 4)
+
+            TextEditor(text: $notesStore.text)
+                .font(.system(size: 13))
+                .scrollContentBackground(.hidden)
+                .background(.clear)
+                .foregroundColor(.white.opacity(0.85))
+                .frame(minHeight: 80, maxHeight: 200)
+                .padding(.horizontal, 8)
+                .padding(.bottom, 8)
+                .onChange(of: notesStore.text) { _ in notesStore.save() }
+        }
+        .background(Color.white.opacity(0.04))
+    }
 }
 
 // MARK: - SegmentView
@@ -256,7 +307,7 @@ struct ContentView_Previews: PreviewProvider {
             TranscriptionSegment(text: "Sure, I've been working on distributed systems for five years.", isFinal: true),
             TranscriptionSegment(text: "正在识别中...", isFinal: false),
         ]
-        return ContentView(store: store, viewModel: RecorderViewModel(store: store))
+        return ContentView(store: store, viewModel: RecorderViewModel(store: store), notesStore: NotesStore())
             .frame(width: 500, height: 280)
     }
 }

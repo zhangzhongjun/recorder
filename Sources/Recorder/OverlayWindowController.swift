@@ -4,9 +4,11 @@ import SwiftUI
 class OverlayWindowController: NSWindowController {
     private let store: TranscriptionStore
     private let viewModel: RecorderViewModel
+    private let notesStore: NotesStore
 
-    init(store: TranscriptionStore) {
+    init(store: TranscriptionStore, notesStore: NotesStore) {
         self.store = store
+        self.notesStore = notesStore
         self.viewModel = RecorderViewModel(store: store)
 
         let screen = NSScreen.main ?? NSScreen.screens[0]
@@ -27,7 +29,7 @@ class OverlayWindowController: NSWindowController {
 
         super.init(window: window)
 
-        let contentView = ContentView(store: store, viewModel: viewModel)
+        let contentView = ContentView(store: store, viewModel: viewModel, notesStore: notesStore)
         window.contentView = NSHostingView(rootView: contentView)
         window.setFrameAutosaveName("RecorderOverlay")
     }

@@ -6,6 +6,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem?
     var overlayWindowController: OverlayWindowController?
     var store = TranscriptionStore()
+    var notesStore = NotesStore()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupMenuBar()
@@ -20,13 +21,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: "显示/隐藏字幕窗口", action: #selector(toggleOverlay), keyEquivalent: "h"))
+        menu.addItem(NSMenuItem(title: "显示/隐藏备忘录", action: #selector(toggleNotes), keyEquivalent: "n"))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "退出", action: #selector(quit), keyEquivalent: "q"))
         statusItem?.menu = menu
     }
 
     private func setupOverlayWindow() {
-        overlayWindowController = OverlayWindowController(store: store)
+        overlayWindowController = OverlayWindowController(store: store, notesStore: notesStore)
         overlayWindowController?.showWindow(nil)
     }
 
@@ -36,6 +38,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             wc.window?.orderOut(nil)
         } else {
             wc.showWindow(nil)
+        }
+    }
+
+    @objc func toggleNotes() {
+        notesStore.showPanel.toggle()
+        // 备忘录面板隐藏时确保主窗口可见
+        if notesStore.showPanel, overlayWindowController?.window?.isVisible == false {
+            overlayWindowController?.showWindow(nil)
         }
     }
 
